@@ -1,16 +1,78 @@
 gg() {
 (
-local -a tDiffA tCmdA
-local tDiffOut
-local -x tic toc
-tic() { t0=${EPOCHREALTIME}; }
-toc() { t1=${EPOCHREALTIME}; tDiff0=$(( ${t1%.*} - ${t0%.*} )); tDiff1=$(( ${t1#*.} - ${t0#*.} )); (( ${tDiff1} < 0 )) && { ((tDiff0--)); tDiff1=$(( ${tDiff1} + 1000000 )); }; tDiffNew0=$(( ${tDiffA[$1]%.*} + ${tDiff0} )); [[ -n ${tDiffA[$1]} ]] || tDiffA[$1]=0.0; tDiffNew1=$(( ${tDiffA[$1]#*.} + ${tDiff1} )); (( ${tDiffNew1} >= 1000000 )) && { ((tDiffNew0++)); tDiffNew1=$(( ${tDiffNew1} - 1000000 )); }; tDiffA[$1]="${tDiffNew0}.${tDiffNew1}"; tCmdA[$1]="$2"; t0=${EPOCHREALTIME}; }
-PS4='^MDEBUG: $((LASTNO=$LINENO)) :'; set -x
+local -ai tDiffA0 tDiffA1
+local -a tCmdA
+local -i LASTNO 
+local tDiffOut t0 PREV_CMD PREV_LINENO
+
+shopt -s extglob
+set -T
+
+tic() { 
+    t0=${EPOCHREALTIME}; 
+}
+toc() { 
+    local t1 
+    t1=${EPOCHREALTIME}; 
+    [[ ${3} == 1 ]] || {
+        PREV_LINENO="${1}"
+        PREV_CMD="${PREV_CMD}; ${2}"  
+    }
+    [[ -n ${PREV_LINENO} ]] && {
+        [[ -n ${tDiffA0[${PREV_LINENO}]} ]] || tDiffA0[${PREV_LINENO}]=0
+        [[ -n ${tDiffA1[${PREV_LINENO}]} ]] || tDiffA1[${PREV_LINENO}]=0
+        tDiffA0[${PREV_LINENO}]+=$(( ${t1%.*} - ${t0%.*} ))
+        tDiffA1[${PREV_LINENO}]+=$(( ${t1##*.*(0)} - ${t0##*.*(0)} ))
+    }
+    [[ -n ${PREV_CMD} ]] && tCmdA[${PREV_LINENO}]="${PREV_CMD}" 
+    if [[ ${3} == 1 ]]; then
+        PREV_LINENO="${1}"
+        PREV_CMD="${2}"
+   # else
+    #    PREV_LINENO=''
+     #   PREV_CMD=''
+    fi
+    t0=${EPOCHREALTIME}
+
+}
+fExit() {
+    local kk
+    for kk in ${!tDiffA1[@]}; do
+        while (( ${tDiffA1[$kk]} < 0 )); do
+            ((tDiffA0[$kk]--))
+            tDiffA1[$kk]=$(( ${tDiffA1[$kk]} + 1000000 ))
+        done
+        while (( ${tDiffA1[$kk]} >= 1000000 )); do
+            ((tDiffA0[$kk]++))
+            tDiffA1[$kk]=$(( ${tDiffA1[$kk]} - 1000000 ))
+        done
+        printf '%d: %d.%06d sec \t{ %s }\n' "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "${tCmdA[$kk]}"
+    done
+}
+getCurTrap() {
+    local nn
+    parseTrap() (
+        echo "$3"
+    )
+    for nn in "${@}"; do
+        parseTrap $(trap -p "${nn}")
+    done
+}
+
+PS4='LINE: $((LASTNO=$LINENO)) : '; set -x
 tic
-trap 'toc ${LASTNO} "$BASH_COMMAND"' DEBUG;
-trap 'trap - DEBUG; tDiffOut="$(declare -p tDiffA)"; tDiffOut="${tDiffOut//'"'"'declare -a tDiffA=('"'"'/}"; tDiffOut="${tDiffOut%)}"; paste <(echo "${tDiffOut// /$'"'"'\n'"'"'}") <(printf '"'"'(%s)\n'"'"' '"''"' "${tCmdA[@]}") >&3' EXIT INT TERM HUP QUIT
-echo hi
-sleep 2
-echo bye
+trap 'toc "${LASTNO}" "${BASH_COMMAND}" "${LINENO}"; '"$(getCurTrap DEBUG)" DEBUG
+trap 'trap - DEBUG; fExit >&3; '"$(getCurTrap EXIT)" EXIT INT TERM HUP QUIT
+
+
+echo 'starting loop test'
+
+for kk in $(sleep 1; seq 1 10); do echo hi
+sleep 0.5s
+echo bye; 
+echo "$(sleep 0.2s; echo 'bye bye bye')"
+done
+
+echo 'finished loop test'
 ) 2>/dev/null
 } 3>&2
