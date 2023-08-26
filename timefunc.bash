@@ -137,7 +137,7 @@ fi
 declare -F "${1}" || { printf '\nERROR: SPECIFIED FUNCTION (%s) NOT SOURCED. PLEASE SOURCE IT AND RE-RUN.\n\n' "${1}" >&2; return 1; }
 
 # add in a few dummy commands (` :; `) a few places to ensure the DEBUG trap captures the command
-mapfile -t fSrc < <(declare -f "${1}" | sed -E s/'^((.*;)?[ \t]*)?((for)|(while)|(until)|(if)|(elif))(([ \t;])|$)'/'\1 :; \3 '/g)
+mapfile -t fSrc < <(declare -f "${1}" | sed -E s/'^((.*;)?[ \t]*)?((for)|(while)|(until))(([ \t;])|$)'/'\1 :; \3 '/g)
 source <(printf '%s\n' "${fSrc[@]:0:2}" ':;' "${fSrc[@]:2}")
 
 # set traps and start timer
