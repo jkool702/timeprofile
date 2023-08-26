@@ -1,10 +1,8 @@
-#!/bin/bash
-
 timefunc() {
 (
 local -ai tDiffA0 tDiffA1
 local -a tCmdA fSrc
-local -i LASTNO 
+local -i LASTNO
 local tDiffOut t0 PREV_CMD PREV_LINENO
 
 shopt -s extglob
@@ -30,7 +28,9 @@ toc() {
 
 }
 fExit() {
-    local kk
+    local -i kk
+    local -ia kkAll
+    kkAll=(${!tDiffA1[@]})
     for kk in ${!tDiffA1[@]}; do
         (( $kk == 1 )) && continue
         while (( ${tDiffA1[$kk]} < 0 )); do
@@ -41,6 +41,11 @@ fExit() {
             ((tDiffA0[$kk]++))
             tDiffA1[$kk]=$(( ${tDiffA1[$kk]} - 1000000 ))
         done
+        if [[ -z $(echo "${tCmdA[$kk]}" | grep -v ':' | grep -E '.+') ]]; then
+            tDiffA0[${kkAll[$kk]}]+=${tDiffA0[$kk]}
+            tDiffA1[${kkAll[$kk]}]+=${tDiffA1[$kk]}
+            continue
+        fi
         tCmdA[$kk]="$(echo "${tCmdA[$kk]}" | sort | uniq -c | tail -n +2 | sed -E s/'^[ \t]*([0-9]+) '/'(\1x) '/)"
         
         printf '%d: %d.%06d sec \t{ %s }\n' "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "$(IFS=$'\n'; printf '%s;  ' ${tCmdA[$kk]})"
@@ -57,23 +62,23 @@ getCurTrap() {
 }
 
 #PS4='LINE: $((LASTNO=$LINENO)) : '; set -x
-tic
-trap 'toc "${LINENO}" "${BASH_COMMAND}"; '"$(getCurTrap DEBUG)" DEBUG
-trap 'trap - DEBUG; fExit >&2; '"$(getCurTrap EXIT)" EXIT INT TERM HUP QUIT
 
-if [[ ${1} =~ ^-+s((ource)|(rc))?$ ]]; then
+if [[ ${1,,} =~ ^-+s((ource)|(rc))?$ ]]; then
     [[ -f "${2}" ]] && source "${2}" || printf '\nWARNING: SPECIFIED SOURCE LOCATION (%s) NOT FOUND OR UN-SOURCABLE. IGNORING SOURCING THIS.\n\n' "${2}" >&2
     shift 2
-elif  [[ ${1} =~ ^-+s((ource)|(rc))?=.+$ ]]; then
+elif  [[ ${1,,} =~ ^-+s((ource)|(rc))?=.+$ ]]; then
     [[ -f "${1#*=}" ]] && source "${1#*=}" || printf '\nWARNING: SPECIFIED SOURCE LOCATION (%s) NOT FOUND OR UN-SOURCABLE. IGNORING SOURCING THIS.\n\n' "${1#*=}" >&2
     shift 1
 fi
 
 declare -F "${1}" || { printf '\nERROR: SPECIFIED FUNCTION (%s) NOT SOURCED. PLEASE SOURCE IT AND RE-RUN.\n\n' "${1}" >&2; return 1; }
 
-mapfile -t fSrc < <(declare -f "${1}")
+mapfile -t fSrc < <(declare -f "${1}" | sed -E s/'^((.*;)?[ \t]*)?((for)|(while)|(until)|(if)|(elif))(([ \t;])|$)'/'\1 :; \3 '/g)
 source <(printf '%s\n' "${fSrc[@]:0:2}" ':' "${fSrc[@]:2}")
 
+tic
+trap 'trap - DEBUG; fExit >&2; '"$(getCurTrap EXIT)" EXIT INT TERM HUP QUIT
+trap 'toc "${LINENO}" "${BASH_COMMAND}"; '"$(getCurTrap DEBUG)" DEBUG
 
 "${@}"
 
