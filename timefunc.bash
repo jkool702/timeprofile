@@ -102,7 +102,7 @@ fExit() {
         tCmdA[$kk]="$(echo "${tCmdA[$kk]}" | sort | uniq -c | tail -n +2 | sed -E s/'^[ \t]*([0-9]+) '/'(\1x) '/)"
         
         # print line for final generated time profile
-        printf '%d: %d.%06d sec \t{  %s}\n' "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "$(IFS=$'\n'; printf '%s;  ' ${tCmdA[$kk]})"
+        printf '%d:\t%d.%06d sec \t{  %s}\n' "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "$(IFS=$'\n'; printf '%s;  ' ${tCmdA[$kk]})"
     done
     
     # print total execution time
