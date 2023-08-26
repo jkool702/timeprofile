@@ -35,6 +35,10 @@ timefunc() {
 #
 # IFF timefunc's STDIN is a pipe ({ ... } | timefunc <...>), it will be passed to func's STDIN when it is called
 #
+# the DEBUG and EXIT traps that make timefunc work are automatically propagated to subshells, but By default the 
+# time profiles are not generated when subshells exit. TRo generate them on subshell exits, run timefunc as:
+#    verboseFlag=true timefunc <...>
+#
 #################################################################################################################
 
 (
