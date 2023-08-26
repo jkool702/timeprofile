@@ -16,7 +16,7 @@ toc() {
     t1=${EPOCHREALTIME}; 
     [[ ${3} == 1 ]] || {
         PREV_LINENO="${1}"
-        PREV_CMD="${PREV_CMD}; ${2}"  
+        PREV_CMD+=$'\n'"${2}"  
     }
     [[ -n ${PREV_LINENO} ]] && {
         [[ -n ${tDiffA0[${PREV_LINENO}]} ]] || tDiffA0[${PREV_LINENO}]=0
@@ -24,13 +24,13 @@ toc() {
         tDiffA0[${PREV_LINENO}]+=$(( ${t1%.*} - ${t0%.*} ))
         tDiffA1[${PREV_LINENO}]+=$(( ${t1##*.*(0)} - ${t0##*.*(0)} ))
     }
-    [[ -n ${PREV_CMD} ]] && tCmdA[${PREV_LINENO}]="${PREV_CMD}" 
+    [[ -n ${PREV_CMD} ]] && tCmdA[${PREV_LINENO}]+=$'\n'"${PREV_CMD}" 
     if [[ ${3} == 1 ]]; then
         PREV_LINENO="${1}"
         PREV_CMD="${2}"
-   # else
-    #    PREV_LINENO=''
-     #   PREV_CMD=''
+    else
+        PREV_LINENO=''
+        PREV_CMD=''
     fi
     t0=${EPOCHREALTIME}
 
@@ -46,7 +46,9 @@ fExit() {
             ((tDiffA0[$kk]++))
             tDiffA1[$kk]=$(( ${tDiffA1[$kk]} - 1000000 ))
         done
-        printf '%d: %d.%06d sec \t{ %s }\n' "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "${tCmdA[$kk]}"
+        tCmdA[$kk]="$(echo "${tCmdA[$kk]}" | sort | uniq -c | tail -n +2 | sed -E s/'^[ \t]*([0-9]+) '/'(\1x) '/)"
+        
+        printf '%d: %d.%06d sec \t{ %s }\n' "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "$(IFS=$'\n'; printf '%s;  ' ${tCmdA[$kk]})"
     done
 }
 getCurTrap() {
