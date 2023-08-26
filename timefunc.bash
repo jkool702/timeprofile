@@ -41,7 +41,7 @@ local -i tFinal0 tFinal1
 local t0 tStart tStop PREV_CMD PREV_LINENO srcPath tStart tStop tFinal0 tFinal1 scriptFlag verboseFlag last_subshell
 
 # if true; trigger exit trap on every subshell exit 
-verboseFlag=true
+: ${verboseFlag:=false}
 
 shopt -s extglob
 set -T
@@ -120,7 +120,7 @@ fExit() {
         tCmdA[$kk]="$(echo "${tCmdA[$kk]}" | sort | uniq -c | tail -n +2 | sed -E s/'^[ \t]*([0-9]+) '/'(\1x) '/)"
         
         # print line for final generated time profile
-        { ${verboseFlag} || [[ "${last_subshell}" == 1 ]]; } && printf '%d.%d: %d.%06d sec \t{  %s}\n' "${last_subshell}" "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "$(IFS=$'\n'; printf '%s;  ' ${tCmdA[$kk]})"
+        { ${verboseFlag} || [[ "${last_subshell}" == 1 ]]; } && printf '%d.%d:\t%d.%06d sec \t{ %s}\n' "${last_subshell}" "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "$(IFS=$'\n'; printf '%s;  ' ${tCmdA[$kk]})"
     done
     
     # print total execution time
