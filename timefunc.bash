@@ -295,14 +295,12 @@ source <(echo "${fSrc0}")
 # start timer
 tic
 
-# set traps
-trap 'toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"' DEBUG
-#echo " SHLVL=$SHLVL; BASH_SUBSHELL=${BASH_SUBSHELL}; BASH_SOURCE=${#BASH_SOURCE[@]}; BASH_CMDS=${BASH_CMDS[*]}; PPID=${PPID}; $$" >&2
-
-# run function (passing it STDIN if needed)
+# set traps and run function (passing it STDIN if needed)
 if [[ -t 0 ]]; then
+    trap 'toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"' DEBUG
     ${scriptFlag} && tfunc "${@}" || "${@}"
 else
+    trap 'toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"' DEBUG
     ${scriptFlag} && tfunc "${@}" <&0 || "${@}" <&0
 fi
 trap - DEBUG
