@@ -4,7 +4,7 @@ timefunc() {
 # total cumulative execution time, line number, command run, and number of times the command was run
 #
 # NOTE: Bash 5+ is required due to the use of the ${EPOCHREALTIME} builtin variable.
-#       several common GNU coreutils are also required (sed, grep, sort, cut, ...)
+#       Several common GNU coreutils are also required (cat, sed, grep, sort, cut, head, tail, ...)
 #
 #
 # # # # # USAGE # # # # #
@@ -51,8 +51,8 @@ timefunc() {
 (
 # make vars local
 local -ai tDiffA0 tDiffA1
-local -a tCmdA fSrc subshellLines timesCur
-local t0 t1 t11 tStart tStop srcPathscriptFlag last_subshell PREV_CMD PREV_LINENO tFinal0 tFinal1 tCmd subshellData dataCur fSrc0 fSrc1 fFlag
+local -a tCmdA fSrcA subshellLines timesCur
+local t0 t1 t11 tStart tStop srcPathscriptFlag last_subshell PREV_CMD PREV_LINENO tFinal0 tFinal1 tCmd subshellData dataCur fSrc fSrc0 fSrc1 fFlag
 local -i tFinal0 tFinal1 tDiff0 tDiff1
 
 # set options. -T is needed to propogate the traps into the functions and its subshells. extglob is needed by the cumulative time tracking code.
@@ -219,28 +219,44 @@ fi
 if [[ -n "${srcPath}" ]]; then
     [[ -f "${srcPath}" ]] && { cat "${srcPath}" | head -n 1 | grep -E '^#!.*bash.*$' || printf '\n%s\n\n' 'WARNING: specified source does not explicitly have a shebang indicating it is bash code.'$'\n''         Time profile generation is unlikely to succeed on code written in other languages.'; }
     if ${scriptFlag}; then
+        # time profiling a script
+        
+        # get script source
         if [[ -f "${srcPath}" ]]; then
-            if [[ "$(cat "${srcPath}" | head -n 1)" == '#!'* ]]; then
-                source <(cat<<EOF
-$(cat "${srcPath}" | head -n 1)
-tfunc() {
-$(cat "${srcPath}" | tail -n +2)
-}
-EOF
-)
-            else
-                source <(cat<<EOF
-tfunc() {
-$(cat "${srcPath}")
-}
-EOF
-)
-            fi
-            [[ "${1}" == "${srcPath}" ]] && shift 1
+            fSrc="$(cat "${srcPath}")"
+        elif [[ "${srcPath}" == '<('*')' ]]; then
+            fSrc="$(source <(printf 'cat %s' "${srcPath}"))"
+        else
+            printf '\nERROR: SPECIFIED SCRIPT SOURCE (%s) NOT FOUND OR UN-SOURCABLE. IT CANNOT NOT BE SOURCED, AND THUS CANNOT BE TIME-PROFILED.\n\n' "${srcPath}" >&2
+            return 1            
         fi
+        
+        # wrap it in a dummy function (tfunc). preserve shebang if present.
+        if [[ "$(echo "${fSrc}" | head -n 1)" == '#!'* ]]; then
+                source <(cat<<EOF
+$(echo "${fSrc}" | head -n 1)
+tfunc() {
+$(echo "${fSrc}" | tail -n +2)
+}
+EOF
+)
+        else
+                source <(cat<<EOF
+tfunc() {
+${fSrc}
+}
+EOF
+)
+        fi
+        
+        # remove script path from calling command (replaced with `tfunc`)
+        [[ "${1}" == "${srcPath}" ]] && shift 1
+        
     elif [[ -f "${srcPath}" ]]; then
+        # using function, source from path at $srcPath
         source "${srcPath}"
-    elif [[ "${srcPath}" == '<('* ]]; then
+    elif [[ "${srcPath}" == '<('*')' ]]; then
+        # using function, source from <(...) command given in $srcPath
         source <(cat<<EOF
 source ${srcPath}
 EOF
@@ -255,8 +271,8 @@ ${scriptFlag} && fName='tfunc' || fName="${1}"
 declare -F "${fName}" || { printf '\nERROR: SPECIFIED FUNCTION (%s) NOT SOURCED. PLEASE SOURCE IT AND RE-RUN.\n\n' "${1}" >&2; return 1; }
 
 # add in a few dummy commands (` :; `) a few places (e,.g. just before loops) to ensure the DEBUG trap captures the command properly
-mapfile -t fSrc < <(declare -f "${fName}" | sed -E s/'^((.*;)?[ \t]*)?((for)|(while)|(until)|(if)|(elif)|(\())(([ \t;])|$)'/'\1 :; \3 '/g)
-source <(printf '%s\n' "${fSrc[@]:0:2}" ':;' "${fSrc[@]:2}")
+mapfile -t fSrcA < <(declare -f "${fName}" | sed -E s/'^((.*;)?[ \t]*)?((for)|(while)|(until)|(\())(([ \t;])|$)'/'\1 :; \3 '/g)
+source <(printf '%s\n' "${fSrcA[@]:0:2}" ':;' "${fSrcA[@]:2}")
 
 # pull out any defined functions and source them seperately, and
 # dont let defining DEBUG/EXIT traps in the function overwrite those needeed by timeprofile
