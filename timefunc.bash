@@ -60,14 +60,12 @@ shopt -s extglob
 set -T
 
 tic() {
-
     ## start the timer
-    t0=${EPOCHREALTIME}; 
-    tStart="${t0}"
     tDiffA0=()
     tDiffA1=()
     tCmdA=()
-    
+    t0=${EPOCHREALTIME}; 
+    tStart="${t0}"
 }
 
 toc() { 
