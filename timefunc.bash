@@ -52,10 +52,10 @@ timefunc() {
 # make vars local
 local -ai tDiffA0 tDiffA1
 local -a tCmdA fSrcA subshellLines timesCur
-local t0 t1 t11 tStart tStop srcPathscriptFlag last_subshell min_subshell PREV_CMD PREV_LINENO tFinal0 tFinal1 tCmd subshellData dataCur fSrc fSrc0 fSrc1 fFlag
+local t0 t1 t11 tStart tStop srcPath scriptFlag last_subshell min_subshell PREV_CMD PREV_LINENO tFinal0 tFinal1 tCmd subshellData dataCur fSrc fSrc0 fSrc1 fFlag
 local -i tFinal0 tFinal1 tDiff0 tDiff1
 
-# set options. -T is needed to propogate the traps into the functions and its subshells. extglob is needed by the cumulative time tracking code.
+# set options. -T is needed to propagate the traps into the functions and its subshells. extglob is needed by the cumulative time tracking code.
 shopt -s extglob
 set -T
 
@@ -106,11 +106,11 @@ fExit() {
     
     local -i kk
     local -ia kkAll
-    kkAll=(${!tDiffA1[@]})
+    kkAll=("${!tDiffA1[@]}")
     
     tStop="${EPOCHREALTIME}"
     
-    for kk in ${!tDiffA1[@]}; do
+    for kk in "${!tDiffA1[@]}"; do
     
         #[[ $kk == 1 ]] && continue
     
@@ -230,16 +230,17 @@ if [[ -n "${srcPath}" ]]; then
         fi
         
         # wrap it in a dummy function (tfunc). preserve shebang if present.
-        if [[ "$(echo "${fSrc}" | head -n 1)" == '#!'* ]]; then
+        if [[ "${fSrc%%$'\n'*}" == '#!'* ]]; then
                 source <(cat<<EOF
-$(echo "${fSrc}" | head -n 1)
+${fSrc%%$'\n'*}
 tfunc() {
-$(echo "${fSrc}" | tail -n +2)
+${fSrc#*$'\n'}
 }
 EOF
 )
         else
                 source <(cat<<EOF
+#!/usr/bin/env bash
 tfunc() {
 ${fSrc}
 }
