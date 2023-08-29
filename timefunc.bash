@@ -52,7 +52,7 @@ timefunc() {
 # make vars local
 local -ai tDiffA0 tDiffA1
 local -a tCmdA fSrcA subshellLines timesCur
-local t0 t1 t11 tStart tStop srcPathscriptFlag last_subshell PREV_CMD PREV_LINENO tFinal0 tFinal1 tCmd subshellData dataCur fSrc fSrc0 fSrc1 fFlag
+local t0 t1 t11 tStart tStop srcPathscriptFlag last_subshell min_subshell PREV_CMD PREV_LINENO tFinal0 tFinal1 tCmd subshellData dataCur fSrc fSrc0 fSrc1 fFlag
 local -i tFinal0 tFinal1 tDiff0 tDiff1
 
 # set options. -T is needed to propogate the traps into the functions and its subshells. extglob is needed by the cumulative time tracking code.
@@ -131,7 +131,7 @@ fExit() {
             continue
         fi
         
-        if [[ ${last_subshell} == 1 ]]; then
+        if [[ ${last_subshell} == ${min_subshell} ]]; then
             # save lines from main shell in final output format
         
             # reduce command list into '(Nx) command' format
@@ -152,7 +152,7 @@ fExit() {
     done
     
     # print total execution time
-    [[ ${last_subshell} == 1 ]] && {
+    [[ ${last_subshell} == ${min_subshell} ]] && {
 
         tFinal0=$(( ${tStop%.*} - ${tStart%.*} )) 
         tFinal1=$(( ${tStop##*.*(0)} - ${tStart##*.*(0)} ))
@@ -284,7 +284,7 @@ fFlag=false; fSrc0=''; fSrc1='';
         ${fFlag} && fSrc1+="${REPLY}"$'\n' || fSrc0+="${REPLY}"$'\n'
         [[ "${REPLY}" == "${endStr}" ]] && fFlag=false
     done
-} < <(declare -f "${fName}" | sed -E s/'trap (.*) DEBUG'/'trap \1'"'"'; toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"'"'"' DEBUG'/ | sed -E s/'trap (.*) EXIT'/'trap \1'"'"'; trap - DEBUG; fExit >&2; : timefunc_exitTrapSet'"'"' EXIT'/)
+} < <(declare -f "${fName}" | sed -E s/'trap (.*[^\-].*) DEBUG'/'trap \1'"'"'; toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"'"'"' DEBUG'/ | sed -E s/'trap (.*[^\-].*) EXIT'/'trap \1'"'"'; trap - DEBUG; fExit >&2; : timefunc_exitTrapSet'"'"' EXIT'/)
 [[ -n "${fSrc1}" ]] && source <(echo "${fSrc1}")
 source <(echo "${fSrc0}")
 
@@ -297,9 +297,11 @@ tic
 
 # set traps and run function (passing it STDIN if needed)
 if [[ -t 0 ]]; then
+    min_subshell=1
     trap 'toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"' DEBUG
     ${scriptFlag} && tfunc "${@}" || "${@}"
 else
+    min_subshell=2
     trap 'toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"' DEBUG
     ${scriptFlag} && tfunc "${@}" <&0 || "${@}" <&0
 fi
