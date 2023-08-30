@@ -74,7 +74,7 @@ toc() {
     # note: the time recorded this iteration is for the previous iteration's command
     
     # set exit trap from debug trap so that `set -T` propagates it too
-    [[ "${last_subshell}" == "${3}" ]] || { tic; last_subshell="${3}"; trap 'trap - DEBUG; fExit >&2; : timefunc_exitTrapSet' EXIT INT TERM HUP QUIT; }
+    [[ "${last_subshell}" == "${3}" ]] || { tic; last_subshell="${3}"; trap 'fExit >&2' EXIT INT TERM HUP QUIT;  }
     
     # dont include commands from timefunc
     [[ ${#BASH_SOURCE[@]} == 1 ]] && return
@@ -103,6 +103,8 @@ toc() {
 
 fExit() {
     ## actually generate the time profile
+    
+    trap - DEBUG
     
     local -i kk
     local -ia kkAll
@@ -187,8 +189,6 @@ fExit() {
             
             done
         }
-        
-
             
         rm ./timeprofile."${fName}".subshells
         cat ./timeprofile."${fName}"  >&2
@@ -285,7 +285,7 @@ fFlag=false; fSrc0=''; fSrc1='';
         ${fFlag} && fSrc1+="${REPLY}"$'\n' || fSrc0+="${REPLY}"$'\n'
         [[ "${REPLY}" == "${endStr}" ]] && fFlag=false
     done
-} < <(declare -f "${fName}" | sed -E s/'trap (.*[^\-].*) DEBUG'/'trap \1'"'"'; toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"'"'"' DEBUG'/ | sed -E s/'trap (.*[^\-].*) EXIT'/'trap \1'"'"'; trap - DEBUG; fExit >&2; : timefunc_exitTrapSet'"'"' EXIT'/)
+} < <(declare -f "${fName}" | sed -E s'/^trap ("?)('"'"'?)(.*[^"'"'"'])["'"'"']? DEBUG/trap \1\2\3\1\1\1\1\1; toc "\${LINENO}" "\${BASH_COMMAND}" "\${BASH_SUBSHELL}"'"'"' DEBUG/g;s/trap ("?)('"'"'?)(.*[^"'"'"'])["'"'"']? EXIT/trap \1\2\3\1\1\1\1\1; fExit \>\&2'"'"' EXIT/g;s/(trap .*)"""""(.* ((DEBUG)|(EXIT)))/\1"'"'"'\2/g')
 [[ -n "${fSrc1}" ]] && source <(echo "${fSrc1}")
 source <(echo "${fSrc0}")
 
