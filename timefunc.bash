@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 timefunc() {
 ## Generates a line-by-line execution time profile for a bash function / script with very minimal overhead
 # The 'time profile' is printed to stderr and includes (for each line): 
@@ -52,12 +54,14 @@ timefunc() {
 # make vars local
 local -ai tDiffA0 tDiffA1
 local -a tCmdA fSrcA subshellLines timesCur
-local t0 t1 t11 tStart tStop srcPath scriptFlag last_subshell min_subshell PREV_CMD PREV_LINENO tFinal0 tFinal1 tCmd subshellData dataCur fSrc fSrc0 fSrc1 fFlag
+local t0 t1 t11 tStart tStop tFinal0 tFinal1 tCmd srcPath last_subshell min_subshell PREV_CMD PREV_LINENO subshellData dataCur fSrc fSrc0 fSrc1 fFlag scriptFlag verboseFlag optParseFlag tmpSubshellsPath
 local -i tFinal0 tFinal1 tDiff0 tDiff1
 
 # set options. -T is needed to propagate the traps into the functions and its subshells. extglob is needed by the cumulative time tracking code.
 shopt -s extglob
 set -T
+
+tmpSubshellsPath="/tmp/$(mktemp -u .timeprofile."${fName}".subshells.XXXXXX)"
 
 tic() {
     ## start the timer
@@ -127,7 +131,7 @@ fExit() {
         done
         
         # place time from dummy `:` commands 
-        if [[ -z $(echo "${tCmdA[$kk]}" | grep -v ':' | grep -E '.+') ]]; then
+        if ! $(echo "${tCmdA[$kk]}" | grep -v ':' | grep -qE '.+'); then
             tDiffA0[${kkAll[$kk]}]+=${tDiffA0[$kk]}
             tDiffA1[${kkAll[$kk]}]+=${tDiffA1[$kk]}
             continue
@@ -142,6 +146,15 @@ fExit() {
             # print line for final generated time profile
             printf '%d.%d:\t%d.%06d sec \t{ %s}\n' "${last_subshell}" "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "$(IFS=$'\n'; printf '%s;  ' ${tCmdA[$kk]})" >>./timeprofile."${fName}"
             
+        elif ${verboseFlag}; then
+            # save lines from subshells in final output format, since we are NOT combining these commands later
+        
+            # reduce command list into '(Nx) command' format
+            tCmdA[$kk]="$(echo "${tCmdA[$kk]}" | sort | uniq -c | tail -n +2 | sed -E s/'^[ \t]*([0-9]+) '/'(\1x) '/)"
+        
+            # print line for final generated time profile
+            printf '%d.%d:\t%d.%06d sec \t{ %s}\n' "${last_subshell}" "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "$(IFS=$'\n'; printf '%s;  ' ${tCmdA[$kk]})" >>"${tmpSubshellsPath}"
+            
         else
             # save lines from subshells as raw data. Will be combined+parsed into final format later
             
@@ -149,7 +162,7 @@ fExit() {
             tCmdA[$kk]="${tCmdA[$kk]//$'\n'/$'\034'}"
             
             # save times and commands to file
-            printf '%d.%d\t%d.%06d\t%s\n' "${last_subshell}" "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "${tCmdA[$kk]})" >>./timeprofile."${fName}".subshells
+            printf '%d.%d\t%d.%06d\t%s\n' "${last_subshell}" "${kk}" "${tDiffA0[$kk]}" "${tDiffA1[$kk]}" "${tCmdA[$kk]})" >>"${tmpSubshellsPath}"
         fi
     done
     
@@ -161,36 +174,37 @@ fExit() {
         (( ${tFinal1} < 0 )) && { ((tFinal0--)); tFinal1=$(( ${tFinal1} + 1000000 )); }
         printf '\nTOTAL TIME TAKEN: %d.%06d seconds\n\n' ${tFinal0} ${tFinal1}  >>./timeprofile."${fName}"
            
-       [[ -f ./timeprofile."${fName}".subshells ]] && {
-        
+        if [[ -f "${tmpSubshellsPath}" ]]; then
             printf '\nSUBSHELL COMMANDS\n\n' >>./timeprofile."${fName}"
-        
-            subshellData="$(cat ./timeprofile."${fName}".@([2-9]) ./timeprofile."${fName}".subshells 2>/dev/null | sort -V -k1)";
-            mapfile -t subshellLines < <(echo "${subshellData}" | cut -f 1 | sort -u | sort -V)
-            for kk in "${!subshellLines[@]}"; do
-                dataCur="$(echo "${subshellData}" | grep -E '^'"${subshellLines[$kk]}")"
-                mapfile -t timesCur < <(echo "${dataCur}" | cut -f 2)
-                
-                tDiff0=0
-                tDiff1=0
-                for t11 in "${timesCur[@]}"; do
-                    tDiff0+=${t11%.*}
-                    tDiff1+=${t11##*.*([0])}
+            if ${verboseFlag}; then
+                sort -k1 -V <"${tmpSubshellsPath}" >>./timeprofile."${fName}"
+            else                    
+                subshellData="$(cat ./timeprofile."${fName}".@([2-9]) "${tmpSubshellsPath}" 2>/dev/null | sort -V -k1)";
+                mapfile -t subshellLines < <(echo "${subshellData}" | cut -f 1 | sort -u | sort -V)
+                for kk in "${!subshellLines[@]}"; do
+                    dataCur="$(echo "${subshellData}" | grep -E '^'"${subshellLines[$kk]}")"
+                    mapfile -t timesCur < <(echo "${dataCur}" | cut -f 2)
+                    
+                    tDiff0=0
+                    tDiff1=0
+                    for t11 in "${timesCur[@]}"; do
+                        tDiff0+=${t11%.*}
+                        tDiff1+=${t11##*.*([0])}
+                    done
+                    while (( ${tDiff1} > 999999 )); do
+                        ((tDiff0++))
+                        tDiff1=$(( ${tDiff1} -  1000000 ))
+                    done
+                    
+                    tCmd="$(echo "${dataCur}" | cut -f 3- | tr $'\034' $'\n' | sort | uniq -c | tail -n +2 | sed -E s/'^[ \t]*([0-9]+) '/'(\1x) '/)"
+                    
+                    # print line for final generated time profile
+                    printf '%s:\t%d.%06d sec \t{ %s}\n' "${subshellLines[$kk]}" "${tDiff0}" "${tDiff1}" "$(IFS=$'\n'; printf '%s;  ' ${tCmd})" >>./timeprofile."${fName}"
                 done
-                while (( ${tDiff1} > 999999 )); do
-                    ((tDiff0++))
-                    tDiff1=$(( ${tDiff1} -  1000000 ))
-                done
-                
-                tCmd="$(echo "${dataCur}" | cut -f 3- | tr $'\034' $'\n' | sort | uniq -c | tail -n +2 | sed -E s/'^[ \t]*([0-9]+) '/'(\1x) '/)"
-                
-                # print line for final generated time profile
-                printf '%s:\t%d.%06d sec \t{ %s}\n' "${subshellLines[$kk]}" "${tDiff0}" "${tDiff1}" "$(IFS=$'\n'; printf '%s;  ' ${tCmd})" >>./timeprofile."${fName}"
+            fi
+            rm "${tmpSubshellsPath}"
+        fi
             
-            done
-        }
-            
-        rm ./timeprofile."${fName}".subshells
         cat ./timeprofile."${fName}"  >&2
         printf '\ntime profile for %s has been saved to %s\n\n' "${fName}" "$(realpath ./timeprofile."${fName}")" >&2
     }
@@ -199,23 +213,35 @@ fExit() {
 # if 1st timefunc option(s) specify what to source to get the function/script, parse it and source it
 # if time profiling a script then wrap it in a dunny function (tfunc) and source that
 scriptFlag=false
-if [[ ${1} =~ ^-+((S)|(script))?$ ]]; then
-    srcPath="${2}"
-    scriptFlag=true
-    shift 2
-elif  [[ ${1} =~ ^-+((S)|(script))=.+$ ]]; then
-    srcPath="${1#*=}"
-    scriptFlag=true
-    shift 1
-elif [[ ${1} =~ ^-+s((ource)|(rc))?$ ]]; then
-    srcPath="${2}"
-    shift 2
-elif  [[ ${1} =~ ^-+s((ource)|(rc))=.+$ ]]; then
-    srcPath="${1#*=}"
-    shift 1
-fi
+verboseFlag=false
+optParseFlag=true
+while ${optParseFlag}; do
+    if [[ ${1} =~ ^-+((S)|(script))?$ ]]; then
+        srcPath="${2}"
+        scriptFlag=true
+        shift 2
+    elif  [[ ${1} =~ ^-+((S)|(script))=.+$ ]]; then
+        srcPath="${1#*=}"
+        scriptFlag=true
+        shift 1
+    elif [[ ${1} =~ ^-+s((ource)|(rc))?$ ]]; then
+        srcPath="${2}"
+        shift 2
+    elif  [[ ${1} =~ ^-+s((ource)|(rc))=.+$ ]]; then
+        srcPath="${1#*=}"
+        shift 1
+    elif [[ ${1} =~ ^-+v(erbose)?$ ]]; then
+        verboseFlag=true
+        shift 1
+    elif [[ "${1}" == '--' ]]; then
+        optParseFlag=false
+        shift 1
+    else
+        optParseFlag=false
+    fi
+done
 if [[ -n "${srcPath}" ]]; then
-    [[ -f "${srcPath}" ]] && { cat "${srcPath}" | head -n 1 | grep -E '^#!.*bash.*$' || printf '\n%s\n\n' 'WARNING: specified source does not explicitly have a shebang indicating it is bash code.'$'\n''         Time profile generation is unlikely to succeed on code written in other languages.'; }
+    [[ -f "${srcPath}" ]] && { head -n 1 <"${srcPath}"  | grep -E '^#!.*bash.*$' || printf '\n%s\n\n' 'WARNING: specified source does not explicitly have a shebang indicating it is bash code.'$'\n''         Time profile generation is unlikely to succeed on code written in other languages.'; }
     if ${scriptFlag}; then
         # time profiling a script
         
@@ -270,7 +296,7 @@ ${scriptFlag} && fName='tfunc' || fName="${1}"
 declare -F "${fName}" || { printf '\nERROR: SPECIFIED FUNCTION (%s) NOT SOURCED. PLEASE SOURCE IT AND RE-RUN.\n\n' "${1}" >&2; return 1; }
 
 # add in a few dummy commands (` :; `) a few places (e,.g. just before loops) to ensure the DEBUG trap captures the command properly
-mapfile -t fSrcA < <(declare -f "${fName}" | sed -E s/'^((.*;)?[ \t]*)?((for)|(while)|(until)|(\())(([ \t;])|$)'/'\1 :; \3 '/g)
+mapfile -t fSrcA < <(declare -f "${fName}" | sed -E s/'^((.*;)?[ \t]*)?((for)|(while)|(until))(([ \t;])|$)'/'\1 :; \3 '/g)
 source <(printf '%s\n' "${fSrcA[@]:0:2}" ':;' "${fSrcA[@]:2}")
 
 # pull out any defined functions and source them seperately, and
@@ -282,16 +308,21 @@ fFlag=false; fSrc0=''; fSrc1='';
             fFlag=true
             endStr="$(echo "$REPLY" | sed -E s/'^([ \t]*).*$'/'\1\};'/)"
         }
-        ${fFlag} && fSrc1+="${REPLY}"$'\n' || fSrc0+="${REPLY}"$'\n'
-        [[ "${REPLY}" == "${endStr}" ]] && fFlag=false
+        if [[ "${REPLY}" == "${endStr}"* ]]; then
+            fFlag=false 
+            fSrc1+="${endStr}"$'\n' 
+            #fSrc0+="${REPLY#"${endStr}"}"$'\n' 
+        else
+            fSrc0+="${REPLY}"$'\n'
+        fi
+       
     done
 } < <(declare -f "${fName}" | sed -E s'/^trap ("?)('"'"'?)(.*[^"'"'"'])["'"'"']? DEBUG/trap \1\2\3\1\1\1\1\1; toc "\${LINENO}" "\${BASH_COMMAND}" "\${BASH_SUBSHELL}"'"'"' DEBUG/g;s/trap ("?)('"'"'?)(.*[^"'"'"'])["'"'"']? EXIT/trap \1\2\3\1\1\1\1\1; fExit \>\&2'"'"' EXIT/g;s/(trap .*)"""""(.* ((DEBUG)|(EXIT)))/\1"'"'"'\2/g')
 [[ -n "${fSrc1}" ]] && source <(echo "${fSrc1}")
 source <(echo "${fSrc0}")
 
-# if a time profileists on disk where this one will be saved, move it to <path>.old
-[[ -f ./timeprofile."${fName}".subshells ]] && { cat ./timeprofile."${fName}".subshells >> ./timeprofile."${fName}".subshells.old; rm ./timeprofile."${fName}".subshells; }
-[[ -f ./timeprofile."${fName}" ]] && { cat ./timeprofile."${fName}" >> ./timeprofile."${fName}".old; rm ./timeprofile."${fName}"; }
+# if a time profile exists on disk where this one will be saved, move it to <path>.old
+[[ -f ./timeprofile."${fName}" ]] && { cat ./timeprofile."${fName}" >>./timeprofile."${fName}".old; rm ./timeprofile."${fName}"; }
 
 # start timer
 tic
@@ -300,11 +331,19 @@ tic
 if [[ -t 0 ]]; then
     min_subshell=1
     trap 'toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"' DEBUG
-    ${scriptFlag} && tfunc "${@}" || "${@}"
+    if ${scriptFlag}; then
+        tfunc "${@}"
+    else
+        "${@}"
+    fi
 else
     min_subshell=2
     trap 'toc "${LINENO}" "${BASH_COMMAND}" "${BASH_SUBSHELL}"' DEBUG
-    ${scriptFlag} && tfunc "${@}" <&0 || "${@}" <&0
+    if ${scriptFlag}; then
+        tfunc "${@}" <&0 
+    else
+        "${@}" <&0
+    fi
 fi
 trap - DEBUG
 
