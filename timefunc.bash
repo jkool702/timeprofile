@@ -14,19 +14,20 @@ timefunc() {
 # source /path/to/timefunc.bash
 # source <(curl 'https://raw.githubusercontent.com/jkool702/timeprofile/main/timefunc.bash')
 #
-# func() { ... }; timefunc func [func_args]
-# timefunc (-s|--src|--source) <src> func [func_args]
-# timefunc (-s|--src|--source)=<src> func [func_args]
-# { ... } | timefunc [(-s|--src|--source) <src>] func [func_args]
-# timefunc (-S|--script) <scriptPath> [script_args]
-# timefunc (-S|--script)=<scriptPath> [script_args]
-# { ... } | timefunc (-S|--script) <scriptPath> [script_args]
+# func() { ... }; timefunc [-v|--verbose] func [func_args]
+# timefunc [-v|--verbose] (-s|--src|--source) <src> func [func_args]
+# timefunc [-v|--verbose] (-s|--src|--source)=<src> func [func_args]
+# { ... } | timefunc [-v|--verbose] [(-s|--src|--source) <src>] func [func_args]
+# timefunc [-v|--verbose] (-S|--script) <scriptPath> [script_args]
+# timefunc [-v|--verbose] (-S|--script)=<scriptPath> [script_args]
+# { ... } | timefunc [-v|--verbose] (-S|--script) <scriptPath> [script_args]
 #
 #
 # # # # # OPTIONS # # # # #
 #
 # -s | --src | --source : function source locstion to be sourced (not needed if function is already sourced)
 # -S | --script         : script source location (the script will be wrapped into a dummy function and sourced)
+# -v | --verbose        : do not combine lines from different subshell calls. The time profile may be considerably longer.
 #
 # NOTE: timefunc flags must be given before other arguments
 # NOTE: anything passed to timefunc's STDIN will be redirected to the STDIN of the function being time-profiled
@@ -137,7 +138,7 @@ fExit() {
             continue
         fi
         
-        if [[ ${last_subshell} == ${min_subshell} ]]; then
+        if (( ${last_subshell} <= ${min_subshell} )); then
             # save lines from main shell in final output format
         
             # reduce command list into '(Nx) command' format
@@ -167,7 +168,7 @@ fExit() {
     done
     
     # print total execution time
-    [[ ${last_subshell} == ${min_subshell} ]] && {
+    (( ${last_subshell} <= ${min_subshell} )) && {
 
         tFinal0=$(( ${tStop%.*} - ${tStart%.*} )) 
         tFinal1=$(( ${tStop##*.*(0)} - ${tStart##*.*(0)} ))
