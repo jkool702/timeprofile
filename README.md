@@ -1,4 +1,34 @@
-# timeprofile
+# timefunc (i.e., the new timeprofile)
+
+Generates a line-by-line execution time profile for a bash function / script with very minimal overhead. The 'time profile' is printed to stderr and includes (for each line): 
+
+* total cumulative execution time
+* line number
+* command run
+* number of times the command was run
+
+NOTE: Bash 5+ is required due to the use of the ${EPOCHREALTIME} builtin variable.
+      Several common GNU coreutils are also required (cat, sed, grep, sort, cut, head, tail, ...)
+
+# USAGE - timefunc.bash
+
+First, source `timefunc.bash` via one of the following
+
+    source /path/to/timefunc.bash
+    source <(curl 'https://raw.githubusercontent.com/jkool702/timeprofile/main/timefunc.bash')
+
+Invoke timefunc.bash to generate a timeprofile via one of the following methods:
+
+    func() { ... }; timefunc [-v|--verbose] func [func_args]
+    timefunc [-v|--verbose] (-s|--src|--source) <src> func [func_args]
+    timefunc [-v|--verbose] (-s|--src|--source)=<src> func [func_args]
+    { ... } | timefunc [-v|--verbose] [(-s|--src|--source) <src>] func [func_args]
+    timefunc [-v|--verbose] (-S|--script) <scriptPath> [script_args]
+    timefunc [-v|--verbose] (-S|--script)=<scriptPath> [script_args]
+    { ... } | timefunc [-v|--verbose] (-S|--script) <scriptPath> [script_args]
+
+
+# instructions for old timeprofile (found in /OLD folder)
 A tool for measuring the execution time of all commands called by a shell script or shell function very efficiently using a DEBUG trap and a bash coproc.
 
 USAGE: run `setup.bash` to save the required script to `/usr/local/bin/addTimeProfile`. To actually utalize this script and generate a timeprofile, add the following line to the top of the script (just after shebang) / function (just after function declarion) that you want to profile:
