@@ -203,7 +203,7 @@ fExit() {
                     printf '%s:\t%d.%06d sec \t{ %s}\n' "${subshellLines[$kk]}" "${tDiff0}" "${tDiff1}" "$(IFS=$'\n'; printf '%s;  ' ${tCmd})" >>./timeprofile."${fName}"
                 done
             fi
-            rm "${tmpSubshellsPath}"
+            \rm -f "${tmpSubshellsPath}"
         fi
             
         cat ./timeprofile."${fName}"  >&2
@@ -323,7 +323,7 @@ fFlag=false; fSrc0=''; fSrc1='';
 source <(echo "${fSrc0}")
 
 # if a time profile exists on disk where this one will be saved, move it to <path>.old
-[[ -f ./timeprofile."${fName}" ]] && { cat ./timeprofile."${fName}" >>./timeprofile."${fName}".old; rm ./timeprofile."${fName}"; }
+[[ -f ./timeprofile."${fName}" ]] && { cat ./timeprofile."${fName}" >>./timeprofile."${fName}".old; \rm -f ./timeprofile."${fName}"; }
 
 # start timer
 tic
