@@ -1,4 +1,4 @@
-# NOTICE: `timeprofile` has been superceeded by [`timep`](https://github.com/jkool702/timep/blob/main/timep.bash). `timep` is recommended over `timeprofile` in almost all profiling situations.
+# NOTICE: `timeprofile` has been superceeded by [`timep`](https://github.com/jkool702/timep/blob/main/timep.bash). `timep` is recommended over `timeprofile`/`timefunc` in almost all profiling situations.
 
 # timefunc (i.e., the new timeprofile)
 
