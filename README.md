@@ -1,3 +1,5 @@
+# NOTICE: `timeprofile` has been supceeded by [timep](https://github.com/jkool702/timep/tree/main). `timep` is reccomended over `timeprofile` in almost all profiling situations.
+
 # timefunc (i.e., the new timeprofile)
 
 Generates a line-by-line execution time profile for a bash function / script with very minimal overhead. The 'time profile' is printed to stderr and includes (for each line): 
